@@ -4,18 +4,23 @@ File ini berisi instruksi untuk membuat Project Board secara otomatis.
 
 ## Cara Otomatis (Paling Mudah)
 
-1. Buka link ini di browser:
-   https://github.com/users/mukminn/projects/new
+### Opsi 1: Dari Repository (Paling Mudah)
 
-2. Pilih template: **Board** (Kanban style)
+1. Buka repository: https://github.com/mukminn/base-erc20-token
+2. Klik tab **"Projects"** di bagian atas repository
+3. Klik tombol **"New project"** atau **"Create project"**
+4. Pilih template: **Board** (Kanban style)
+5. Nama project: **BaseToken Development**
+6. Klik **"Create project"**
 
-3. Nama project: **BaseToken Development**
+### Opsi 2: Dari Profile
 
-4. Setelah project dibuat, link ke repository:
-   - Buka: https://github.com/mukminn/base-erc20-token
-   - Klik tab **Projects**
-   - Klik **Link a project**
-   - Pilih **BaseToken Development**
+1. Buka: https://github.com/mukminn?tab=projects
+2. Klik **"New project"**
+3. Pilih template: **Board**
+4. Nama: **BaseToken Development**
+5. Link repository: **base-erc20-token**
+6. Klik **"Create project"**
 
 ## Template Project Board
 
