@@ -11,7 +11,7 @@ A separate **mini dApp** project is available for interacting with the BaseToken
 - Simple, modern UI
 - Ready to deploy to Vercel
 
-See the separate repository: [basetoken-dapp](https://github.com/mukminn/basetoken-dapp)
+See the separate repository: [mini-app-baru](https://github.com/mukminn/mini-app-baru)
 
 ## 📋 Table of Contents
 
