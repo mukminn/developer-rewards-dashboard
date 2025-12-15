@@ -12,6 +12,10 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
  * @title UnifiedFeeContract
  * @dev Satu kontrak untuk NFT dan Token minting dengan sistem fees (ETH & USDC)
  * Menggunakan pendekatan composition internal untuk menghindari konflik inheritance
+ * 
+ * Note: Event conflicts (Transfer, Approval) antara ERC721 dan ERC20 tidak bisa dihindari
+ * karena keduanya mendefinisikan event dengan nama yang sama tapi signature berbeda.
+ * Solidity akan menggunakan event dari kedua base contracts.
  */
 contract UnifiedFeeContract is ERC721, ERC20, Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -87,7 +91,7 @@ contract UnifiedFeeContract is ERC721, ERC20, Ownable, ReentrancyGuard {
     /**
      * @dev Mint NFT dengan ETH
      */
-    function mintNFT(address to, string memory tokenURI) external payable nonReentrant {
+    function mintNFT(address to, string memory uri) external payable nonReentrant {
         require(nftMintingEnabled, "NFT minting is disabled");
         require(_nftTokenIdCounter < nftMaxSupply, "NFT max supply reached");
         require(msg.value >= nftMintPriceEth, "Insufficient payment");
@@ -96,7 +100,7 @@ contract UnifiedFeeContract is ERC721, ERC20, Ownable, ReentrancyGuard {
         _nftTokenIdCounter++;
         
         _safeMint(to, tokenId);
-        _tokenURIs[tokenId] = tokenURI;
+        _tokenURIs[tokenId] = uri;
         
         // Collect fees
         totalEthFees += nftMintPriceEth;
@@ -114,7 +118,7 @@ contract UnifiedFeeContract is ERC721, ERC20, Ownable, ReentrancyGuard {
     /**
      * @dev Mint NFT dengan USDC
      */
-    function mintNFTWithUsdc(address to, string memory tokenURI) external nonReentrant {
+    function mintNFTWithUsdc(address to, string memory uri) external nonReentrant {
         require(nftMintingEnabled, "NFT minting is disabled");
         require(_nftTokenIdCounter < nftMaxSupply, "NFT max supply reached");
         
@@ -122,7 +126,7 @@ contract UnifiedFeeContract is ERC721, ERC20, Ownable, ReentrancyGuard {
         _nftTokenIdCounter++;
         
         _safeMint(to, tokenId);
-        _tokenURIs[tokenId] = tokenURI;
+        _tokenURIs[tokenId] = uri;
         
         // Collect USDC fees
         usdcToken.safeTransferFrom(msg.sender, address(this), nftMintPriceUsdc);
@@ -213,7 +217,7 @@ contract UnifiedFeeContract is ERC721, ERC20, Ownable, ReentrancyGuard {
         userEthFees[msg.sender] += tokenMintPriceEth;
         
         // Mint tokens
-        _mint(to, tokensPerMint);
+        _mintToken(to, tokensPerMint);
         
         // Refund excess
         if (msg.value > tokenMintPriceEth) {
@@ -237,7 +241,7 @@ contract UnifiedFeeContract is ERC721, ERC20, Ownable, ReentrancyGuard {
         userUsdcFees[msg.sender] += tokenMintPriceUsdc;
         
         // Mint tokens
-        _mint(to, tokensPerMint);
+        _mintToken(to, tokensPerMint);
         
         emit TokensMinted(to, tokensPerMint, 0, tokenMintPriceUsdc, false);
     }
@@ -258,7 +262,7 @@ contract UnifiedFeeContract is ERC721, ERC20, Ownable, ReentrancyGuard {
         userEthFees[msg.sender] += totalFee;
         
         // Mint tokens
-        _mint(to, totalTokens);
+        _mintToken(to, totalTokens);
         
         // Refund excess
         if (msg.value > totalFee) {
@@ -285,7 +289,7 @@ contract UnifiedFeeContract is ERC721, ERC20, Ownable, ReentrancyGuard {
         userUsdcFees[msg.sender] += totalUsdcFee;
         
         // Mint tokens
-        _mint(to, totalTokens);
+        _mintToken(to, totalTokens);
         
         emit TokensMinted(to, totalTokens, 0, totalUsdcFee, false);
     }
@@ -386,7 +390,23 @@ contract UnifiedFeeContract is ERC721, ERC20, Ownable, ReentrancyGuard {
      */
     function ownerMintToken(address to, uint256 amount) external onlyOwner {
         require(totalSupply() + amount <= tokenMaxSupply, "Exceeds token max supply");
-        _mint(to, amount);
+        _mintToken(to, amount);
+    }
+    
+    // ============ Internal Helper Functions ============
+    
+    /**
+     * @dev Internal function untuk mint ERC20 tokens (menghindari konflik dengan ERC721._mint)
+     */
+    function _mintToken(address to, uint256 amount) internal {
+        ERC20._mint(to, amount);
+    }
+    
+    /**
+     * @dev Internal function untuk transfer ERC20 tokens (menghindari konflik dengan ERC721._transfer)
+     */
+    function _transferToken(address from, address to, uint256 amount) internal {
+        ERC20._transfer(from, to, amount);
     }
     
     // ============ Override Functions ============
@@ -403,6 +423,103 @@ contract UnifiedFeeContract is ERC721, ERC20, Ownable, ReentrancyGuard {
     {
         return ERC721.supportsInterface(interfaceId) || 
                interfaceId == type(IERC20).interfaceId;
+    }
+    
+    /**
+     * @dev Override _mint untuk membedakan antara NFT dan Token minting
+     * ERC721._mint digunakan untuk NFT, ERC20._mint digunakan untuk tokens
+     */
+    function _mint(address to, uint256 value) internal virtual override(ERC721, ERC20) {
+        // Default behavior: jika dipanggil tanpa konteks, gunakan ERC20
+        // Untuk NFT, gunakan _safeMint atau _mintNFT secara eksplisit
+        ERC20._mint(to, value);
+    }
+    
+    /**
+     * @dev Override _transfer untuk membedakan antara NFT dan Token transfer
+     */
+    function _transfer(address from, address to, uint256 value) internal virtual override(ERC721, ERC20) {
+        // Default behavior: gunakan ERC20 transfer
+        // Untuk NFT transfer, gunakan transferFrom atau safeTransferFrom
+        ERC20._transfer(from, to, value);
+    }
+    
+    /**
+     * @dev Override approve - ERC20 approve (untuk token)
+     * Untuk NFT approval, gunakan approveNFT
+     */
+    function approve(address spender, uint256 amount) public virtual override(ERC721, ERC20) returns (bool) {
+        // Default: ERC20 approve
+        return ERC20.approve(spender, amount);
+    }
+    
+    /**
+     * @dev NFT approve function (explicit untuk menghindari konflik)
+     */
+    function approveNFT(address to, uint256 tokenId) public {
+        ERC721.approve(to, tokenId);
+    }
+    
+    /**
+     * @dev Override balanceOf - return ERC20 balance (untuk token)
+     * Untuk NFT balance, gunakan nftBalanceOf
+     */
+    function balanceOf(address account) public view virtual override(ERC721, ERC20) returns (uint256) {
+        // Default: ERC20 balance
+        return ERC20.balanceOf(account);
+    }
+    
+    /**
+     * @dev Override name - return ERC721 name (NFT name)
+     * Untuk ERC20 name, gunakan tokenName
+     */
+    function name() public view virtual override(ERC721, ERC20) returns (string memory) {
+        return ERC721.name();
+    }
+    
+    /**
+     * @dev Override symbol - return ERC721 symbol (NFT symbol)
+     * Untuk ERC20 symbol, gunakan tokenSymbol
+     */
+    function symbol() public view virtual override(ERC721, ERC20) returns (string memory) {
+        return ERC721.symbol();
+    }
+    
+    /**
+     * @dev Override transferFrom - ERC20 transferFrom (untuk token)
+     * Untuk NFT transfer, gunakan transferNFT atau safeTransferFrom
+     */
+    function transferFrom(address from, address to, uint256 amount) public virtual override(ERC721, ERC20) returns (bool) {
+        // Default: ERC20 transferFrom
+        return ERC20.transferFrom(from, to, amount);
+    }
+    
+    /**
+     * @dev NFT transferFrom function (explicit untuk menghindari konflik)
+     */
+    function transferNFT(address from, address to, uint256 tokenId) public {
+        ERC721.transferFrom(from, to, tokenId);
+    }
+    
+    /**
+     * @dev Get ERC20 token name
+     */
+    function tokenName() external view returns (string memory) {
+        return ERC20.name();
+    }
+    
+    /**
+     * @dev Get ERC20 token symbol
+     */
+    function tokenSymbol() external view returns (string memory) {
+        return ERC20.symbol();
+    }
+    
+    /**
+     * @dev Get ERC721 NFT balance
+     */
+    function nftBalanceOf(address owner) external view returns (uint256) {
+        return ERC721.balanceOf(owner);
     }
     
     /**
