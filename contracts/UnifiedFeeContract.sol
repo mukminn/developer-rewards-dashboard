@@ -2,7 +2,6 @@
 pragma solidity >=0.8.20 <0.9.0;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -10,14 +9,9 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title UnifiedFeeContract
- * @dev Satu kontrak untuk NFT dan Token minting dengan sistem fees (ETH & USDC)
- * Menggunakan pendekatan composition internal untuk menghindari konflik inheritance
- * 
- * Note: Event conflicts (Transfer, Approval) antara ERC721 dan ERC20 tidak bisa dihindari
- * karena keduanya mendefinisikan event dengan nama yang sama tapi signature berbeda.
- * Solidity akan menggunakan event dari kedua base contracts.
+ * @dev Kontrak untuk NFT minting dengan sistem fees (ETH & USDC)
  */
-contract UnifiedFeeContract is ERC721, ERC20, Ownable, ReentrancyGuard {
+contract UnifiedFeeContract is ERC721, Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
     
     // ============ NFT Variables ============
@@ -27,13 +21,6 @@ contract UnifiedFeeContract is ERC721, ERC20, Ownable, ReentrancyGuard {
     uint256 public nftMaxSupply;
     bool public nftMintingEnabled;
     mapping(uint256 => string) private _tokenURIs;
-    
-    // ============ Token Variables ============
-    uint256 public tokenMintPriceEth;
-    uint256 public tokenMintPriceUsdc;
-    uint256 public tokensPerMint;
-    uint256 public tokenMaxSupply;
-    bool public tokenMintingEnabled;
     
     // ============ Fee Variables ============
     uint256 public totalEthFees;
@@ -45,28 +32,18 @@ contract UnifiedFeeContract is ERC721, ERC20, Ownable, ReentrancyGuard {
     
     // ============ Events ============
     event NFTMinted(address indexed to, uint256 indexed tokenId, uint256 ethPaid, uint256 usdcPaid, bool paidWithEth);
-    event TokensMinted(address indexed to, uint256 amount, uint256 ethPaid, uint256 usdcPaid, bool paidWithEth);
     event FeesWithdrawn(address indexed owner, uint256 ethAmount, uint256 usdcAmount);
     event NFTPriceUpdated(uint256 newEthPrice, uint256 newUsdcPrice);
-    event TokenPriceUpdated(uint256 newEthPrice, uint256 newUsdcPrice, uint256 newTokensPerMint);
-    event TokenBurned(address indexed account, uint256 amount);
     
     constructor(
         string memory nftName,
         string memory nftSymbol,
-        string memory tokenName,
-        string memory tokenSymbol,
         address _usdcAddress,
         uint256 _nftMintPriceEth,
         uint256 _nftMintPriceUsdc,
-        uint256 _nftMaxSupply,
-        uint256 _tokenMintPriceEth,
-        uint256 _tokenMintPriceUsdc,
-        uint256 _tokensPerMint,
-        uint256 _tokenMaxSupply
+        uint256 _nftMaxSupply
     ) 
         ERC721(nftName, nftSymbol) 
-        ERC20(tokenName, tokenSymbol) 
         Ownable(msg.sender) 
     {
         usdcToken = IERC20(_usdcAddress);
@@ -77,13 +54,6 @@ contract UnifiedFeeContract is ERC721, ERC20, Ownable, ReentrancyGuard {
         nftMaxSupply = _nftMaxSupply;
         nftMintingEnabled = true;
         _nftTokenIdCounter = 0;
-        
-        // Token settings
-        tokenMintPriceEth = _tokenMintPriceEth;
-        tokenMintPriceUsdc = _tokenMintPriceUsdc;
-        tokensPerMint = _tokensPerMint;
-        tokenMaxSupply = _tokenMaxSupply;
-        tokenMintingEnabled = true;
     }
     
     // ============ NFT Functions ============
@@ -202,106 +172,6 @@ contract UnifiedFeeContract is ERC721, ERC20, Ownable, ReentrancyGuard {
         userUsdcFees[msg.sender] += totalUsdcFee;
     }
     
-    // ============ Token Functions ============
-    
-    /**
-     * @dev Mint Token dengan ETH
-     */
-    function mintToken(address to) external payable nonReentrant {
-        require(tokenMintingEnabled, "Token minting is disabled");
-        require(totalSupply() + tokensPerMint <= tokenMaxSupply, "Token max supply reached");
-        require(msg.value >= tokenMintPriceEth, "Insufficient payment");
-        
-        // Collect fees
-        totalEthFees += tokenMintPriceEth;
-        userEthFees[msg.sender] += tokenMintPriceEth;
-        
-        // Mint tokens
-        _mintToken(to, tokensPerMint);
-        
-        // Refund excess
-        if (msg.value > tokenMintPriceEth) {
-            (bool refundSuccess, ) = payable(msg.sender).call{value: msg.value - tokenMintPriceEth}("");
-            require(refundSuccess, "Refund failed");
-        }
-        
-        emit TokensMinted(to, tokensPerMint, tokenMintPriceEth, 0, true);
-    }
-    
-    /**
-     * @dev Mint Token dengan USDC
-     */
-    function mintTokenWithUsdc(address to) external nonReentrant {
-        require(tokenMintingEnabled, "Token minting is disabled");
-        require(totalSupply() + tokensPerMint <= tokenMaxSupply, "Token max supply reached");
-        
-        // Collect USDC fees
-        usdcToken.safeTransferFrom(msg.sender, address(this), tokenMintPriceUsdc);
-        totalUsdcFees += tokenMintPriceUsdc;
-        userUsdcFees[msg.sender] += tokenMintPriceUsdc;
-        
-        // Mint tokens
-        _mintToken(to, tokensPerMint);
-        
-        emit TokensMinted(to, tokensPerMint, 0, tokenMintPriceUsdc, false);
-    }
-    
-    /**
-     * @dev Batch mint Token dengan ETH
-     */
-    function batchMintToken(address to, uint256 quantity) external payable nonReentrant {
-        require(tokenMintingEnabled, "Token minting is disabled");
-        require(totalSupply() + (tokensPerMint * quantity) <= tokenMaxSupply, "Exceeds token max supply");
-        require(msg.value >= tokenMintPriceEth * quantity, "Insufficient payment");
-        
-        uint256 totalFee = tokenMintPriceEth * quantity;
-        uint256 totalTokens = tokensPerMint * quantity;
-        
-        // Collect fees
-        totalEthFees += totalFee;
-        userEthFees[msg.sender] += totalFee;
-        
-        // Mint tokens
-        _mintToken(to, totalTokens);
-        
-        // Refund excess
-        if (msg.value > totalFee) {
-            (bool refundSuccess, ) = payable(msg.sender).call{value: msg.value - totalFee}("");
-            require(refundSuccess, "Refund failed");
-        }
-        
-        emit TokensMinted(to, totalTokens, totalFee, 0, true);
-    }
-    
-    /**
-     * @dev Batch mint Token dengan USDC
-     */
-    function batchMintTokenWithUsdc(address to, uint256 quantity) external nonReentrant {
-        require(tokenMintingEnabled, "Token minting is disabled");
-        require(totalSupply() + (tokensPerMint * quantity) <= tokenMaxSupply, "Exceeds token max supply");
-        
-        uint256 totalUsdcFee = tokenMintPriceUsdc * quantity;
-        uint256 totalTokens = tokensPerMint * quantity;
-        
-        // Collect USDC fees
-        usdcToken.safeTransferFrom(msg.sender, address(this), totalUsdcFee);
-        totalUsdcFees += totalUsdcFee;
-        userUsdcFees[msg.sender] += totalUsdcFee;
-        
-        // Mint tokens
-        _mintToken(to, totalTokens);
-        
-        emit TokensMinted(to, totalTokens, 0, totalUsdcFee, false);
-    }
-    
-    /**
-     * @dev Burn tokens (fungsi burn manual tanpa ERC20Burnable)
-     */
-    function burn(uint256 amount) external {
-        _burn(msg.sender, amount);
-        emit TokenBurned(msg.sender, amount);
-    }
-    
     // ============ Owner Functions ============
     
     /**
@@ -358,20 +228,6 @@ contract UnifiedFeeContract is ERC721, ERC20, Ownable, ReentrancyGuard {
     }
     
     /**
-     * @dev Update Token mint price
-     */
-    function setTokenMintPrice(
-        uint256 _mintPriceEth,
-        uint256 _mintPriceUsdc,
-        uint256 _tokensPerMint
-    ) external onlyOwner {
-        tokenMintPriceEth = _mintPriceEth;
-        tokenMintPriceUsdc = _mintPriceUsdc;
-        tokensPerMint = _tokensPerMint;
-        emit TokenPriceUpdated(_mintPriceEth, _mintPriceUsdc, _tokensPerMint);
-    }
-    
-    /**
      * @dev Toggle NFT minting
      */
     function toggleNFTMinting() external onlyOwner {
@@ -379,148 +235,21 @@ contract UnifiedFeeContract is ERC721, ERC20, Ownable, ReentrancyGuard {
     }
     
     /**
-     * @dev Toggle Token minting
+     * @dev Owner mint NFT tanpa fees (untuk airdrop)
      */
-    function toggleTokenMinting() external onlyOwner {
-        tokenMintingEnabled = !tokenMintingEnabled;
-    }
-    
-    /**
-     * @dev Owner mint token tanpa fees (untuk airdrop)
-     */
-    function ownerMintToken(address to, uint256 amount) external onlyOwner {
-        require(totalSupply() + amount <= tokenMaxSupply, "Exceeds token max supply");
-        _mintToken(to, amount);
-    }
-    
-    // ============ Internal Helper Functions ============
-    
-    /**
-     * @dev Internal function untuk mint ERC20 tokens (menghindari konflik dengan ERC721._mint)
-     */
-    function _mintToken(address to, uint256 amount) internal {
-        ERC20._mint(to, amount);
-    }
-    
-    /**
-     * @dev Internal function untuk transfer ERC20 tokens (menghindari konflik dengan ERC721._transfer)
-     */
-    function _transferToken(address from, address to, uint256 amount) internal {
-        ERC20._transfer(from, to, amount);
+    function ownerMintNFT(address to, string memory uri) external onlyOwner {
+        require(_nftTokenIdCounter < nftMaxSupply, "NFT max supply reached");
+        
+        uint256 tokenId = _nftTokenIdCounter;
+        _nftTokenIdCounter++;
+        
+        _safeMint(to, tokenId);
+        _tokenURIs[tokenId] = uri;
+        
+        emit NFTMinted(to, tokenId, 0, 0, true);
     }
     
     // ============ Override Functions ============
-    
-    /**
-     * @dev Override supportsInterface untuk ERC721 dan ERC20
-     */
-    function supportsInterface(bytes4 interfaceId) 
-        public 
-        view 
-        virtual 
-        override(ERC721) 
-        returns (bool) 
-    {
-        return ERC721.supportsInterface(interfaceId) || 
-               interfaceId == type(IERC20).interfaceId;
-    }
-    
-    /**
-     * @dev Override _mint untuk membedakan antara NFT dan Token minting
-     * ERC721._mint digunakan untuk NFT, ERC20._mint digunakan untuk tokens
-     */
-    function _mint(address to, uint256 value) internal virtual override(ERC721, ERC20) {
-        // Default behavior: jika dipanggil tanpa konteks, gunakan ERC20
-        // Untuk NFT, gunakan _safeMint atau _mintNFT secara eksplisit
-        ERC20._mint(to, value);
-    }
-    
-    /**
-     * @dev Override _transfer untuk membedakan antara NFT dan Token transfer
-     */
-    function _transfer(address from, address to, uint256 value) internal virtual override(ERC721, ERC20) {
-        // Default behavior: gunakan ERC20 transfer
-        // Untuk NFT transfer, gunakan transferFrom atau safeTransferFrom
-        ERC20._transfer(from, to, value);
-    }
-    
-    /**
-     * @dev Override approve - ERC20 approve (untuk token)
-     * Untuk NFT approval, gunakan approveNFT
-     */
-    function approve(address spender, uint256 amount) public virtual override(ERC721, ERC20) returns (bool) {
-        // Default: ERC20 approve
-        return ERC20.approve(spender, amount);
-    }
-    
-    /**
-     * @dev NFT approve function (explicit untuk menghindari konflik)
-     */
-    function approveNFT(address to, uint256 tokenId) public {
-        ERC721.approve(to, tokenId);
-    }
-    
-    /**
-     * @dev Override balanceOf - return ERC20 balance (untuk token)
-     * Untuk NFT balance, gunakan nftBalanceOf
-     */
-    function balanceOf(address account) public view virtual override(ERC721, ERC20) returns (uint256) {
-        // Default: ERC20 balance
-        return ERC20.balanceOf(account);
-    }
-    
-    /**
-     * @dev Override name - return ERC721 name (NFT name)
-     * Untuk ERC20 name, gunakan tokenName
-     */
-    function name() public view virtual override(ERC721, ERC20) returns (string memory) {
-        return ERC721.name();
-    }
-    
-    /**
-     * @dev Override symbol - return ERC721 symbol (NFT symbol)
-     * Untuk ERC20 symbol, gunakan tokenSymbol
-     */
-    function symbol() public view virtual override(ERC721, ERC20) returns (string memory) {
-        return ERC721.symbol();
-    }
-    
-    /**
-     * @dev Override transferFrom - ERC20 transferFrom (untuk token)
-     * Untuk NFT transfer, gunakan transferNFT atau safeTransferFrom
-     */
-    function transferFrom(address from, address to, uint256 amount) public virtual override(ERC721, ERC20) returns (bool) {
-        // Default: ERC20 transferFrom
-        return ERC20.transferFrom(from, to, amount);
-    }
-    
-    /**
-     * @dev NFT transferFrom function (explicit untuk menghindari konflik)
-     */
-    function transferNFT(address from, address to, uint256 tokenId) public {
-        ERC721.transferFrom(from, to, tokenId);
-    }
-    
-    /**
-     * @dev Get ERC20 token name
-     */
-    function tokenName() external view returns (string memory) {
-        return ERC20.name();
-    }
-    
-    /**
-     * @dev Get ERC20 token symbol
-     */
-    function tokenSymbol() external view returns (string memory) {
-        return ERC20.symbol();
-    }
-    
-    /**
-     * @dev Get ERC721 NFT balance
-     */
-    function nftBalanceOf(address owner) external view returns (uint256) {
-        return ERC721.balanceOf(owner);
-    }
     
     /**
      * @dev Get token URI untuk NFT
@@ -541,13 +270,6 @@ contract UnifiedFeeContract is ERC721, ERC20, Ownable, ReentrancyGuard {
      */
     function nftTotalSupply() external view returns (uint256) {
         return _nftTokenIdCounter;
-    }
-    
-    /**
-     * @dev Get Token total supply
-     */
-    function tokenTotalSupply() external view returns (uint256) {
-        return totalSupply();
     }
     
     /**
