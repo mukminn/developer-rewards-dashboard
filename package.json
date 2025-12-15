@@ -8,6 +8,8 @@
     "test": "hardhat test",
     "deploy:base": "hardhat run scripts/deploy.js --network base",
     "deploy:baseSepolia": "hardhat run scripts/deploy.js --network baseSepolia",
+    "deploy:unified:base": "hardhat run scripts/deploy-unified.js --network base",
+    "deploy:unified:baseSepolia": "hardhat run scripts/deploy-unified.js --network baseSepolia",
     "verify": "hardhat verify"
   },
   "keywords": [
