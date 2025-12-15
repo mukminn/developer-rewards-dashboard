@@ -2,20 +2,18 @@
 pragma solidity >=0.8.20 <0.9.0;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 /**
  * @title UnifiedFeeContract
  * @dev Satu kontrak untuk NFT dan Token minting dengan sistem fees (ETH & USDC)
  */
-contract UnifiedFeeContract is ERC721URIStorage, ERC20, ERC20Burnable, Ownable, ReentrancyGuard {
+contract UnifiedFeeContract is ERC721, ERC20, ERC20Burnable, Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
     
     // ============ NFT Variables ============
@@ -24,6 +22,9 @@ contract UnifiedFeeContract is ERC721URIStorage, ERC20, ERC20Burnable, Ownable, 
     uint256 public nftMintPriceUsdc;
     uint256 public nftMaxSupply;
     bool public nftMintingEnabled;
+    
+    // Mapping untuk menyimpan tokenURI (menggantikan ERC721URIStorage)
+    mapping(uint256 => string) private _tokenURIs;
     
     // ============ Token Variables ============
     uint256 public tokenMintPriceEth;
@@ -96,7 +97,7 @@ contract UnifiedFeeContract is ERC721URIStorage, ERC20, ERC20Burnable, Ownable, 
         _nftTokenIdCounter++;
         
         _safeMint(to, tokenId);
-        _setTokenURI(tokenId, tokenURI);
+        _tokenURIs[tokenId] = tokenURI;
         
         // Collect fees
         totalEthFees += nftMintPriceEth;
@@ -124,7 +125,7 @@ contract UnifiedFeeContract is ERC721URIStorage, ERC20, ERC20Burnable, Ownable, 
         _nftTokenIdCounter++;
         
         _safeMint(to, tokenId);
-        _setTokenURI(tokenId, tokenURI);
+        _tokenURIs[tokenId] = tokenURI;
         
         // Collect USDC fees
         usdcToken.safeTransferFrom(msg.sender, address(this), nftMintPriceUsdc);
@@ -154,7 +155,7 @@ contract UnifiedFeeContract is ERC721URIStorage, ERC20, ERC20Burnable, Ownable, 
             _nftTokenIdCounter++;
             
             _safeMint(to, tokenId);
-            _setTokenURI(tokenId, tokenURIs[i]);
+            _tokenURIs[tokenId] = tokenURIs[i];
             
             emit NFTMinted(to, tokenId, nftMintPriceEth, nftMintPriceUsdc, true);
         }
@@ -191,7 +192,7 @@ contract UnifiedFeeContract is ERC721URIStorage, ERC20, ERC20Burnable, Ownable, 
             _nftTokenIdCounter++;
             
             _safeMint(to, tokenId);
-            _setTokenURI(tokenId, tokenURIs[i]);
+            _tokenURIs[tokenId] = tokenURIs[i];
             
             emit NFTMinted(to, tokenId, 0, nftMintPriceUsdc, false);
         }
@@ -398,11 +399,23 @@ contract UnifiedFeeContract is ERC721URIStorage, ERC20, ERC20Burnable, Ownable, 
         public 
         view 
         virtual 
-        override(ERC721URIStorage) 
+        override(ERC721) 
         returns (bool) 
     {
-        return ERC721URIStorage.supportsInterface(interfaceId) || 
+        return ERC721.supportsInterface(interfaceId) || 
                interfaceId == type(IERC20).interfaceId;
+    }
+    
+    /**
+     * @dev Get token URI untuk NFT
+     */
+    function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
+        _requireOwned(tokenId);
+        string memory uri = _tokenURIs[tokenId];
+        if (bytes(uri).length > 0) {
+            return uri;
+        }
+        return "";
     }
     
     // ============ View Functions ============
