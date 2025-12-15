@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --sky-blue-50: #f0f9ff;
+  --sky-blue-100: #e0f2fe;
+  --sky-blue-200: #bae6fd;
+  --sky-blue-300: #7dd3fc;
+  --sky-blue-400: #38bdf8;
+  --sky-blue-500: #0ea5e9;
+  --sky-blue-600: #0284c7;
+  --sky-blue-700: #0369a1;
+  --sky-blue-800: #075985;
+  --sky-blue-900: #0c4a6e;
+}
+
+body {
+  @apply bg-gradient-to-br from-sky-blue-50 via-sky-blue-100 to-sky-blue-200 min-h-screen;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@layer components {
+  .card {
+    @apply bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-sky-blue-200/50 p-6;
+  }
+  
+  .btn-primary {
+    @apply bg-gradient-to-r from-sky-blue-500 to-sky-blue-600 hover:from-sky-blue-600 hover:to-sky-blue-700 
+           text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 
+           shadow-md hover:shadow-lg transform hover:-translate-y-0.5;
+  }
+  
+  .btn-secondary {
+    @apply bg-sky-blue-100 hover:bg-sky-blue-200 text-sky-blue-700 font-semibold 
+           py-3 px-6 rounded-xl transition-all duration-200 border border-sky-blue-300;
+  }
+  
+  .input-field {
+    @apply w-full px-4 py-3 rounded-xl border-2 border-sky-blue-200 focus:border-sky-blue-500 
+           focus:ring-2 focus:ring-sky-blue-300 outline-none transition-all bg-white/90;
+  }
+  
+  .stat-card {
+    @apply bg-gradient-to-br from-sky-blue-50 to-sky-blue-100 rounded-xl p-5 border border-sky-blue-200/50 
+           shadow-md hover:shadow-lg transition-shadow;
+  }
+}
