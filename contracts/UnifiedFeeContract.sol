@@ -394,7 +394,13 @@ contract UnifiedFeeContract is ERC721URIStorage, ERC20, ERC20Burnable, Ownable, 
     /**
      * @dev Override supportsInterface untuk ERC721 dan ERC20
      */
-    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721URIStorage) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) 
+        public 
+        view 
+        virtual 
+        override(ERC721URIStorage) 
+        returns (bool) 
+    {
         return ERC721URIStorage.supportsInterface(interfaceId) || 
                interfaceId == type(IERC20).interfaceId;
     }
