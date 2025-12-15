@@ -1,202 +1,157 @@
-# BaseToken - ERC20 Token on Base
+# Fee Contracts untuk Base Network
 
-A simple, secure ERC20 token implementation for the Base blockchain using Hardhat, OpenZeppelin contracts, and best practices.
+Smart contracts untuk mengumpulkan fees dari minting NFT dan Token di Base network. Fees dapat dibayar dengan ETH atau USDC, dan owner dapat withdraw fees yang terkumpul.
 
-## 📱 dApp
+## Kontrak yang Tersedia
 
-A separate **mini dApp** project is available for interacting with the BaseToken contract:
-- Connect wallet (MetaMask)
-- Read contract data (balance, supply, etc.)
-- Write transactions (transfer, mint, burn)
-- Simple, modern UI
-- Ready to deploy to Vercel
+### 1. FeeCollector
+Kontrak utama untuk mengumpulkan dan mengelola fees (ETH & USDC).
 
-See the separate repository: [mini-app-baru](https://github.com/mukminn/mini-app-baru)
+**Fitur:**
+- Collect fees dalam ETH
+- Collect fees dalam USDC
+- Withdraw ETH fees (hanya owner)
+- Withdraw USDC fees (hanya owner)
+- Withdraw semua fees sekaligus
 
-## 📋 Table of Contents
+### 2. FeeNFT
+Kontrak NFT dengan sistem fees untuk minting.
 
-- [Features](#features)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Usage](#usage)
-- [Testing](#testing)
-- [Deployment](#deployment)
-- [Contract Details](#contract-details)
-- [Best Practices](#best-practices)
-- [License](#license)
+**Fitur:**
+- Mint NFT dengan bayar ETH
+- Mint NFT dengan bayar USDC
+- Batch mint (ETH atau USDC)
+- Update harga mint (owner)
+- Toggle minting on/off (owner)
 
-## ✨ Features
+### 3. FeeToken
+Kontrak ERC20 Token dengan sistem fees untuk minting.
 
-- **Standard ERC20**: Full ERC20 token implementation
-- **Burnable**: Tokens can be burned to reduce total supply
-- **Ownable**: Owner can mint new tokens
-- **OpenZeppelin**: Uses battle-tested OpenZeppelin contracts
-- **Hardhat**: Complete Hardhat development environment
-- **Base Network**: Configured for Base mainnet and Base Sepolia testnet
-- **Verification**: Automatic contract verification on BaseScan
+**Fitur:**
+- Mint token dengan bayar ETH
+- Mint token dengan bayar USDC
+- Batch mint (ETH atau USDC)
+- Update harga mint (owner)
+- Toggle minting on/off (owner)
 
-## 🔧 Prerequisites
+## Setup
 
-- Node.js (v18 or higher recommended)
-- npm or yarn
-- A wallet with some ETH on Base (for deployment)
-- BaseScan API key (optional, for contract verification)
-
-## 📦 Installation
-
-1. Clone or navigate to this project directory:
-```bash
-cd base-erc20-token
-```
-
-2. Install dependencies:
+1. Install dependencies:
 ```bash
 npm install
 ```
 
-## ⚙️ Configuration
-
-1. Create a `.env` file in the root directory:
-```bash
-cp .env.example .env
-```
-
-2. Add your configuration to `.env`:
+2. Buat file `.env`:
 ```env
-PRIVATE_KEY=your_private_key_here
+PRIVATE_KEY=your_private_key
+BASE_RPC_URL=https://mainnet.base.org
 BASE_SEPOLIA_RPC_URL=https://sepolia.base.org
-BASE_MAINNET_RPC_URL=https://mainnet.base.org
-BASESCAN_API_KEY=your_basescan_api_key_here
+BASESCAN_API_KEY=your_basescan_api_key
+USDC_ADDRESS=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
 ```
 
-**⚠️ Security Note**: Never commit your `.env` file. It's already in `.gitignore`.
+**USDC Addresses:**
+- Base Mainnet: `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`
+- Base Sepolia: `0x036CbD53842c5426634e7929541eC2318f3dCF7e`
 
-## 🚀 Usage
+## Deploy
 
-### Compile Contracts
-
-```bash
-npm run compile
-```
-
-### Run Local Node (Optional)
-
-Start a local Hardhat node for testing:
-
-```bash
-npm run node
-```
-
-In another terminal, deploy to localhost:
-
-```bash
-npm run deploy:local
-```
-
-## 🧪 Testing
-
-Run the test suite:
-
-```bash
-npm test
-```
-
-The tests cover:
-- ✅ Deployment and initialization
-- ✅ Token transfers
-- ✅ Minting (owner only)
-- ✅ Burning tokens
-- ✅ Allowance and approvals
-- ✅ Edge cases and error handling
-
-## 📤 Deployment
-
-### Deploy to Base Sepolia (Testnet)
-
-1. Get testnet ETH from [Base Sepolia Faucet](https://www.coinbase.com/faucets/base-ethereum-goerli-faucet)
-2. Deploy:
-```bash
-npm run deploy:base-sepolia
-```
-
-### Deploy to Base Mainnet
-
-1. Ensure you have ETH on Base mainnet
-2. Deploy:
+### Deploy ke Base Mainnet:
 ```bash
 npm run deploy:base
 ```
 
-The deployment script will:
-- Deploy the contract
-- Display deployment information
-- Automatically verify the contract on BaseScan (if API key is provided)
+### Deploy ke Base Sepolia (Testnet):
+```bash
+npm run deploy:baseSepolia
+```
 
-## 📄 Contract Details
+## Usage
 
-### BaseToken Contract
+### 1. Deploy Contracts
+Setelah deploy, Anda akan mendapatkan 3 alamat kontrak:
+- FeeCollector address
+- FeeNFT address  
+- FeeToken address
 
-**Location**: `contracts/BaseToken.sol`
+### 2. Users Mint NFT dengan ETH
+```solidity
+feeNFT.mint(userAddress, "ipfs://...", {value: mintPriceEth});
+```
 
-**Features**:
-- **ERC20**: Standard token functionality (transfer, balance, etc.)
-- **ERC20Burnable**: Tokens can be burned
-- **Ownable**: Owner-controlled minting
+### 3. Users Mint NFT dengan USDC
+```solidity
+// User harus approve USDC dulu
+usdc.approve(feeNFTAddress, mintPriceUsdc);
+feeNFT.mintWithUsdc(userAddress, "ipfs://...");
+```
 
-**Constructor Parameters**:
-- `name`: Token name (e.g., "Base Token")
-- `symbol`: Token symbol (e.g., "BASE")
-- `initialSupply`: Initial supply in wei (e.g., 1,000,000 tokens = `1000000 * 10^18`)
+### 4. Users Mint Token dengan ETH
+```solidity
+feeToken.mint(userAddress, {value: mintPriceEth});
+```
 
-**Functions**:
-- `mint(address to, uint256 amount)`: Owner can mint new tokens
-- `burn(uint256 amount)`: Anyone can burn their own tokens
-- Standard ERC20 functions: `transfer`, `approve`, `transferFrom`, etc.
+### 5. Users Mint Token dengan USDC
+```solidity
+// User harus approve USDC dulu
+usdc.approve(feeTokenAddress, mintPriceUsdc);
+feeToken.mintWithUsdc(userAddress);
+```
 
-### Default Configuration
+### 6. Owner Withdraw Fees
 
-- **Name**: Base Token
-- **Symbol**: BASE
-- **Initial Supply**: 1,000,000 tokens
+**Withdraw ETH:**
+```solidity
+feeCollector.withdrawEth();
+```
 
-You can modify these in `scripts/deploy.js`.
+**Withdraw USDC:**
+```solidity
+feeCollector.withdrawUsdc();
+```
 
-## 🏆 Best Practices
+**Withdraw Semua:**
+```solidity
+feeCollector.withdrawAll();
+```
 
-This project follows Solidity and blockchain development best practices:
+## Contract Functions
 
-1. **OpenZeppelin Contracts**: Uses audited, industry-standard contracts
-2. **Access Control**: Proper use of `Ownable` for privileged functions
-3. **Error Handling**: Clear error messages using custom errors
-4. **Code Comments**: Comprehensive NatSpec documentation
-5. **Testing**: Comprehensive test coverage
-6. **Security**: No hardcoded secrets, proper `.gitignore`
-7. **Optimization**: Solidity compiler optimizer enabled
-8. **Network Configuration**: Separate configs for testnet and mainnet
-9. **Verification**: Automatic contract verification on block explorers
+### FeeCollector
 
-## 🔗 Useful Links
+- `collectFees(uint256 ethAmount, uint256 usdcAmount)` - Collect fees dalam ETH
+- `collectFeesUsdc(uint256 usdcAmount)` - Collect fees dalam USDC
+- `withdrawEth()` - Withdraw ETH fees (owner only)
+- `withdrawUsdc()` - Withdraw USDC fees (owner only)
+- `withdrawAll()` - Withdraw semua fees (owner only)
+- `getEthBalance()` - Get ETH balance
+- `getUsdcBalance()` - Get USDC balance
 
-- [Base Documentation](https://docs.base.org/)
-- [BaseScan Explorer](https://basescan.org/)
-- [OpenZeppelin Contracts](https://docs.openzeppelin.com/contracts)
-- [Hardhat Documentation](https://hardhat.org/docs)
-- [ERC20 Standard](https://eips.ethereum.org/EIPS/eip-20)
+### FeeNFT
 
-## 📝 License
+- `mint(address to, string tokenURI)` - Mint dengan ETH
+- `mintWithUsdc(address to, string tokenURI)` - Mint dengan USDC
+- `batchMint(...)` - Batch mint dengan ETH
+- `batchMintWithUsdc(...)` - Batch mint dengan USDC
+- `setMintPrice(uint256 ethPrice, uint256 usdcPrice)` - Update harga (owner)
+- `toggleMinting()` - Enable/disable minting (owner)
 
-MIT License - see LICENSE file for details
+### FeeToken
 
-## 👤 Author
+- `mint(address to)` - Mint dengan ETH
+- `mintWithUsdc(address to)` - Mint dengan USDC
+- `batchMint(address to, uint256 quantity)` - Batch mint dengan ETH
+- `batchMintWithUsdc(address to, uint256 quantity)` - Batch mint dengan USDC
+- `setMintPrice(...)` - Update harga (owner)
+- `toggleMinting()` - Enable/disable minting (owner)
 
-mukminn
+## Security
 
----
+- Menggunakan OpenZeppelin contracts (audited)
+- ReentrancyGuard untuk mencegah reentrancy attacks
+- Ownable untuk access control
+- SafeERC20 untuk safe token transfers
 
-**⚠️ Disclaimer**: This is a basic ERC20 implementation for educational purposes. For production use, consider additional features like:
-- Pausable functionality
-- Time-locked transfers
-- Tax mechanisms
-- Multi-signature wallet support
-- Comprehensive security audits
+## License
+
+MIT
