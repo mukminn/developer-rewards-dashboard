@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 /**
  * @title UnifiedFeeContract
@@ -59,7 +60,11 @@ contract UnifiedFeeContract is ERC721URIStorage, ERC20, ERC20Burnable, Ownable, 
         uint256 _tokenMintPriceUsdc,
         uint256 _tokensPerMint,
         uint256 _tokenMaxSupply
-    ) ERC721(nftName, nftSymbol) ERC20(tokenName, tokenSymbol) Ownable(msg.sender) {
+    ) 
+        ERC721(nftName, nftSymbol) 
+        ERC20(tokenName, tokenSymbol) 
+        Ownable(msg.sender) 
+    {
         usdcToken = IERC20(_usdcAddress);
         
         // NFT settings
@@ -204,7 +209,7 @@ contract UnifiedFeeContract is ERC721URIStorage, ERC20, ERC20Burnable, Ownable, 
      */
     function mintToken(address to) external payable nonReentrant {
         require(tokenMintingEnabled, "Token minting is disabled");
-        require(totalSupply() + tokensPerMint <= tokenMaxSupply, "Token max supply reached");
+        require(ERC20.totalSupply() + tokensPerMint <= tokenMaxSupply, "Token max supply reached");
         require(msg.value >= tokenMintPriceEth, "Insufficient payment");
         
         // Collect fees
@@ -214,7 +219,7 @@ contract UnifiedFeeContract is ERC721URIStorage, ERC20, ERC20Burnable, Ownable, 
         userUsdcFees[msg.sender] += tokenMintPriceUsdc;
         
         // Mint tokens
-        _mint(to, tokensPerMint);
+        ERC20._mint(to, tokensPerMint);
         
         // Refund excess
         if (msg.value > tokenMintPriceEth) {
@@ -230,7 +235,7 @@ contract UnifiedFeeContract is ERC721URIStorage, ERC20, ERC20Burnable, Ownable, 
      */
     function mintTokenWithUsdc(address to) external nonReentrant {
         require(tokenMintingEnabled, "Token minting is disabled");
-        require(totalSupply() + tokensPerMint <= tokenMaxSupply, "Token max supply reached");
+        require(ERC20.totalSupply() + tokensPerMint <= tokenMaxSupply, "Token max supply reached");
         
         // Collect USDC fees
         usdcToken.safeTransferFrom(msg.sender, address(this), tokenMintPriceUsdc);
@@ -238,7 +243,7 @@ contract UnifiedFeeContract is ERC721URIStorage, ERC20, ERC20Burnable, Ownable, 
         userUsdcFees[msg.sender] += tokenMintPriceUsdc;
         
         // Mint tokens
-        _mint(to, tokensPerMint);
+        ERC20._mint(to, tokensPerMint);
         
         emit TokensMinted(to, tokensPerMint, 0, tokenMintPriceUsdc, false);
     }
@@ -248,7 +253,7 @@ contract UnifiedFeeContract is ERC721URIStorage, ERC20, ERC20Burnable, Ownable, 
      */
     function batchMintToken(address to, uint256 quantity) external payable nonReentrant {
         require(tokenMintingEnabled, "Token minting is disabled");
-        require(totalSupply() + (tokensPerMint * quantity) <= tokenMaxSupply, "Exceeds token max supply");
+        require(ERC20.totalSupply() + (tokensPerMint * quantity) <= tokenMaxSupply, "Exceeds token max supply");
         require(msg.value >= tokenMintPriceEth * quantity, "Insufficient payment");
         
         uint256 totalFee = tokenMintPriceEth * quantity;
@@ -261,7 +266,7 @@ contract UnifiedFeeContract is ERC721URIStorage, ERC20, ERC20Burnable, Ownable, 
         userUsdcFees[msg.sender] += tokenMintPriceUsdc * quantity;
         
         // Mint tokens
-        _mint(to, totalTokens);
+        ERC20._mint(to, totalTokens);
         
         // Refund excess
         if (msg.value > totalFee) {
@@ -277,7 +282,7 @@ contract UnifiedFeeContract is ERC721URIStorage, ERC20, ERC20Burnable, Ownable, 
      */
     function batchMintTokenWithUsdc(address to, uint256 quantity) external nonReentrant {
         require(tokenMintingEnabled, "Token minting is disabled");
-        require(totalSupply() + (tokensPerMint * quantity) <= tokenMaxSupply, "Exceeds token max supply");
+        require(ERC20.totalSupply() + (tokensPerMint * quantity) <= tokenMaxSupply, "Exceeds token max supply");
         
         uint256 totalUsdcFee = tokenMintPriceUsdc * quantity;
         uint256 totalTokens = tokensPerMint * quantity;
@@ -288,7 +293,7 @@ contract UnifiedFeeContract is ERC721URIStorage, ERC20, ERC20Burnable, Ownable, 
         userUsdcFees[msg.sender] += totalUsdcFee;
         
         // Mint tokens
-        _mint(to, totalTokens);
+        ERC20._mint(to, totalTokens);
         
         emit TokensMinted(to, totalTokens, 0, totalUsdcFee, false);
     }
@@ -380,8 +385,18 @@ contract UnifiedFeeContract is ERC721URIStorage, ERC20, ERC20Burnable, Ownable, 
      * @dev Owner mint token tanpa fees (untuk airdrop)
      */
     function ownerMintToken(address to, uint256 amount) external onlyOwner {
-        require(totalSupply() + amount <= tokenMaxSupply, "Exceeds token max supply");
-        _mint(to, amount);
+        require(ERC20.totalSupply() + amount <= tokenMaxSupply, "Exceeds token max supply");
+        ERC20._mint(to, amount);
+    }
+    
+    // ============ Override Functions ============
+    
+    /**
+     * @dev Override supportsInterface untuk ERC721 dan ERC20
+     */
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721URIStorage) returns (bool) {
+        return ERC721URIStorage.supportsInterface(interfaceId) || 
+               interfaceId == type(IERC20).interfaceId;
     }
     
     // ============ View Functions ============
@@ -391,6 +406,13 @@ contract UnifiedFeeContract is ERC721URIStorage, ERC20, ERC20Burnable, Ownable, 
      */
     function nftTotalSupply() external view returns (uint256) {
         return _nftTokenIdCounter;
+    }
+    
+    /**
+     * @dev Get Token total supply (override untuk clarity)
+     */
+    function tokenTotalSupply() external view returns (uint256) {
+        return ERC20.totalSupply();
     }
     
     /**
